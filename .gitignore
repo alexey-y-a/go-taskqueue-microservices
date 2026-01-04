@@ -1,0 +1,13 @@
+# Config
+.env
+*.log
+/.env*
+/*.env.local
+
+# IDE
+.vscode/
+.idea/
+.DS_Store
+
+# Docker
+/postgres-data
