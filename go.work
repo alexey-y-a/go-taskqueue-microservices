@@ -4,4 +4,5 @@ use (
     ./libs/taskmodel
     ./libs/logger
     ./services/api-gateway
+    ./services/queue-service
 )
