@@ -7,7 +7,8 @@ import (
 )
 
 func main() {
-    mux := httpHandlers.NewMux()
+    s := httpHandlers.NewServer()
+    mux := s.Mux()
 
     addr := ":8081"
 
