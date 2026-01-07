@@ -1,0 +1,23 @@
+version: "3.9"
+
+services:
+  queue-service:
+    build: ./services/queue-service
+    container_name: queue-service
+    ports:
+      - "8080:8080"
+
+  worker-service:
+    build: ./services/worker-service
+    container_name: worker-service
+    depends_on:
+      - queue-service
+
+  api-gateway:
+    build: ./services/api-gateway
+    container_name: api-gateway
+    ports:
+      - "8080:8080"
+    depends_on:
+      - queue-service
+      - worker-service
