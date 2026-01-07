@@ -72,3 +72,16 @@ func (s *Store) UpdateStatus(id string, status taskmodel.Status) (taskmodel.Task
     s.tasks[id] = t
     return t, true
 }
+
+func (s *Store) NextPending() (taskmodel.Task, bool) {
+    s.mu.RLock()
+    defer s.mu.RUnlock()
+
+    for _, t := range s.tasks {
+        if t.Status == taskmodel.StatusPending {
+            return t, true
+        }
+    }
+    return taskmodel.Task{}, false
+}
+
