@@ -3,6 +3,7 @@ module github.com/alexey-y-a/go-taskqueue-microservices
 go 1.26.0
 
 require (
+	github.com/google/uuid v1.6.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.9.0
 )
@@ -14,4 +15,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/alexey-y-a/go-taskqueue-microservices/libs/logger => ../../libs/logger
+replace (
+	github.com/alexey-y-a/go-taskqueue-microservices/libs/logger => ../../libs/logger
+	github.com/alexey-y-a/go-taskqueue-microservices/libs/taskmodel => ../../libs/taskmodel
+)
