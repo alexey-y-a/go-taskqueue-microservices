@@ -3,6 +3,7 @@ module github.com/alexey-y-a/go-taskqueue-microservices
 go 1.26.0
 
 require (
+	github.com/golang/mock v1.6.0
 	github.com/google/uuid v1.6.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.9.0
