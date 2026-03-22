@@ -19,7 +19,7 @@ dist/
 coverage/
 
 # Config
-.env
+.env*
 *.log
 /.env*
 /*.env.local
