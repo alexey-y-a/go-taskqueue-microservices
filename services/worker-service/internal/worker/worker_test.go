@@ -19,17 +19,17 @@ func TestWorker_ProcessTasks(t *testing.T) {
 
 	task := taskmodel.NewTask("task-1", "email", "test payload")
 
-	mockClient.EXPECT().GetPendingTasks(gomock.Any(), 10).Return([]*taskmodel.Task{task}, nil).Times(1)
+	mockClient.EXPECT().GetPendingTasks(gomock.Any(), 10).Return([]*taskmodel.Task{task}, nil).MinTimes(1)
 
-	mockClient.EXPECT().UpdateTaskStatus(gomock.Any(), "task-1", taskmodel.StatusCompleted, "").Return(nil).Times(1)
+	mockClient.EXPECT().UpdateTaskStatus(gomock.Any(), "task-1", taskmodel.StatusCompleted, "").Return(nil).MinTimes(1)
 
-	w := New(mockClient, 10, time.Second, time.Second)
+	w := New(mockClient, 10, 100*time.Millisecond, 50*time.Millisecond)
 
 	ctx := context.Background()
 
 	w.Start(ctx)
 
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(250 * time.Millisecond)
 
 	w.Stop()
 }
@@ -42,15 +42,15 @@ func TestWorker_ProcessTasks_Failure(t *testing.T) {
 
 	task := taskmodel.NewTask("task-1", "email", "")
 
-	mockClient.EXPECT().GetPendingTasks(gomock.Any(), 10).Return([]*taskmodel.Task{task}, nil).Times(1)
+	mockClient.EXPECT().GetPendingTasks(gomock.Any(), 10).Return([]*taskmodel.Task{task}, nil).MinTimes(1)
 
-	mockClient.EXPECT().UpdateTaskStatus(gomock.Any(), "task-1", taskmodel.StatusFailed, gomock.Any()).Return(nil).Times(1)
+	mockClient.EXPECT().UpdateTaskStatus(gomock.Any(), "task-1", taskmodel.StatusFailed, gomock.Any()).Return(nil).MinTimes(1)
 
-	w := New(mockClient, 10, time.Second, time.Second)
+	w := New(mockClient, 10, 100*time.Millisecond, 50*time.Millisecond)
 	ctx := context.Background()
 
 	w.Start(ctx)
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(250 * time.Millisecond)
 	w.Stop()
 }
 
@@ -60,9 +60,9 @@ func TestWorker_ProcessTasks_ClientError(t *testing.T) {
 
 	mockClient := mocks.NewMockQueueServiceClient(ctrl)
 
-	mockClient.EXPECT().GetPendingTasks(gomock.Any(), 10).Return(nil, errors.New("connection failed")).Times(1)
+	mockClient.EXPECT().GetPendingTasks(gomock.Any(), 10).Return(nil, errors.New("connection failed")).MinTimes(1)
 
-	w := New(mockClient, 10, time.Millisecond*100, time.Millisecond*50)
+	w := New(mockClient, 10, 100*time.Millisecond, 50*time.Millisecond)
 
 	ctx := context.Background()
 

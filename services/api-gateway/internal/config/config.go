@@ -16,6 +16,11 @@ type Config struct {
 	}
 
 	ShutdownTimeout time.Duration
+
+	Client struct {
+		QueueServiceURL string
+		Timeout         time.Duration
+	}
 }
 
 func New() *Config {
@@ -28,6 +33,9 @@ func New() *Config {
 	cfg.Server.WriteTimeout = 10 * time.Second
 	cfg.Server.IdleTimeout = 120 * time.Second
 
+	cfg.Client.QueueServiceURL = "http://localhost:8081"
+	cfg.Client.Timeout = 30 * time.Second
+
 	portStr := os.Getenv("PORT")
 	if portStr != "" {
 		port, err := strconv.Atoi(portStr)
@@ -36,30 +44,18 @@ func New() *Config {
 		}
 	}
 
-	timeoutStr := os.Getenv("READ_TIMEOUT")
-	if timeoutStr != "" {
-		timeout, err := strconv.Atoi(timeoutStr)
-		if err == nil {
-			cfg.Server.ReadTimeout = time.Duration(timeout) * time.Second
-		}
+	queueURL := os.Getenv("QUEUE_SERVICE_URL")
+	if queueURL != "" {
+		cfg.Client.QueueServiceURL = queueURL
 	}
 
-	timeoutStr = os.Getenv("WRITE_TIMEOUT")
+	timeoutStr := os.Getenv("CLIENT_TIMEOUT")
 	if timeoutStr != "" {
 		timeout, err := strconv.Atoi(timeoutStr)
 		if err == nil {
-			cfg.Server.WriteTimeout = time.Duration(timeout) * time.Second
-		}
-	}
-
-	timeoutStr = os.Getenv("IDLE_TIMEOUT")
-	if timeoutStr != "" {
-		timeout, err := strconv.Atoi(timeoutStr)
-		if err == nil {
-			cfg.Server.IdleTimeout = time.Duration(timeout) * time.Second
+			cfg.Client.Timeout = time.Duration(timeout) * time.Second
 		}
 	}
 
 	return cfg
-
 }
