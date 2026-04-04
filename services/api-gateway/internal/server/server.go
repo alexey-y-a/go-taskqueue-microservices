@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/alexey-y-a/go-taskqueue-microservices/libs/logger"
+	"github.com/alexey-y-a/go-taskqueue-microservices/libs/metrics"
 	"github.com/alexey-y-a/go-taskqueue-microservices/services/api-gateway/internal/client"
 	"github.com/alexey-y-a/go-taskqueue-microservices/services/api-gateway/internal/config"
 	"github.com/alexey-y-a/go-taskqueue-microservices/services/api-gateway/internal/handlers"
@@ -15,20 +16,26 @@ import (
 type Server struct {
 	httpServer *http.Server
 	config     *config.Config
+	metrics    *metrics.ServiceMetrics
 }
 
 func New(cfg *config.Config) *Server {
+
+	serviceMetrics := metrics.NewServiceMetrics("api_gateway")
 
 	queueClient := client.NewQueueClient(cfg.Client.QueueServiceURL, cfg.Client.Timeout)
 
 	rootHandler := handlers.RootHandler()
 	healthHandler := handlers.HealthHandler()
-	taskHandler := handlers.NewTaskHandler(queueClient)
+	taskHandler := handlers.NewTaskHandler(queueClient, serviceMetrics)
+
+	rootHandlerWithMetrics := serviceMetrics.MetricsMiddleware(rootHandler)
+	healthHandlerWithMetrics := serviceMetrics.MetricsMiddleware(healthHandler)
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/", rootHandler)
-	mux.HandleFunc("/healthz", healthHandler)
+	mux.HandleFunc("/", rootHandlerWithMetrics)
+	mux.HandleFunc("/healthz", healthHandlerWithMetrics)
 
 	mux.HandleFunc("POST /tasks", taskHandler.Create)
 	mux.HandleFunc("GET /tasks/", taskHandler.Get)
@@ -52,6 +59,7 @@ func New(cfg *config.Config) *Server {
 	return &Server{
 		httpServer: httpServer,
 		config:     cfg,
+		metrics:    serviceMetrics,
 	}
 }
 

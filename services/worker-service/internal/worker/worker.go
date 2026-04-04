@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/alexey-y-a/go-taskqueue-microservices/libs/logger"
+	"github.com/alexey-y-a/go-taskqueue-microservices/libs/metrics"
 	"github.com/alexey-y-a/go-taskqueue-microservices/libs/taskmodel"
 	"github.com/alexey-y-a/go-taskqueue-microservices/services/worker-service/internal/client"
 	"github.com/sirupsen/logrus"
@@ -16,9 +17,9 @@ type Worker struct {
 	batchSize    int
 	pollInterval time.Duration
 	retryDelay   time.Duration
-
-	stopChan chan struct{}
-	doneChan chan struct{}
+	stopChan     chan struct{}
+	doneChan     chan struct{}
+	metrics      *metrics.ServiceMetrics
 }
 
 func New(
@@ -26,15 +27,16 @@ func New(
 	batchSize int,
 	pollInterval time.Duration,
 	retryDelay time.Duration,
+	m *metrics.ServiceMetrics,
 ) *Worker {
 	return &Worker{
 		queueClient:  queueClient,
 		batchSize:    batchSize,
 		pollInterval: pollInterval,
 		retryDelay:   retryDelay,
-
-		stopChan: make(chan struct{}),
-		doneChan: make(chan struct{}),
+		stopChan:     make(chan struct{}),
+		doneChan:     make(chan struct{}),
+		metrics:      m,
 	}
 }
 
@@ -105,6 +107,7 @@ func (w *Worker) processTask(ctx context.Context, task *taskmodel.Task) {
 	err := w.executeTask(ctx, task)
 	if err != nil {
 		log.WithError(err).Error("task processing failed")
+		w.metrics.TasksFailed.Inc()
 
 		updateErr := w.queueClient.UpdateTaskStatus(ctx, task.ID, taskmodel.StatusFailed, err.Error())
 		if updateErr != nil {
@@ -113,6 +116,8 @@ func (w *Worker) processTask(ctx context.Context, task *taskmodel.Task) {
 
 		return
 	}
+
+	w.metrics.TasksProcessed.Inc()
 
 	err = w.queueClient.UpdateTaskStatus(ctx, task.ID, taskmodel.StatusCompleted, "")
 	if err != nil {
