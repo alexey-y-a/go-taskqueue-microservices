@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/alexey-y-a/go-taskqueue-microservices/libs/logger"
+	"github.com/alexey-y-a/go-taskqueue-microservices/libs/metrics"
 	"github.com/alexey-y-a/go-taskqueue-microservices/services/queue-service/internal/config"
 	"github.com/alexey-y-a/go-taskqueue-microservices/services/queue-service/internal/handlers"
 	"github.com/alexey-y-a/go-taskqueue-microservices/services/queue-service/internal/store"
@@ -16,12 +17,16 @@ type Server struct {
 	httpServer *http.Server
 	config     *config.Config
 	store      *store.MemoryStore
+	metrics    *metrics.ServiceMetrics
 }
 
 func New(cfg *config.Config) *Server {
+
+	serviceMetrics := metrics.NewServiceMetrics("queue-service")
+
 	store := store.NewMemoryStore(cfg.Store.MaxTasks)
 
-	taskHandler := handlers.NewTaskHandler(store)
+	taskHandler := handlers.NewTaskHandler(store, serviceMetrics)
 
 	mux := http.NewServeMux()
 
@@ -51,6 +56,7 @@ func New(cfg *config.Config) *Server {
 		httpServer: httpServer,
 		config:     cfg,
 		store:      store,
+		metrics:    serviceMetrics,
 	}
 }
 

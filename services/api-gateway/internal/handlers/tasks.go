@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/alexey-y-a/go-taskqueue-microservices/libs/logger"
+	"github.com/alexey-y-a/go-taskqueue-microservices/libs/metrics"
 	"github.com/alexey-y-a/go-taskqueue-microservices/services/api-gateway/internal/client"
 	"github.com/alexey-y-a/go-taskqueue-microservices/services/api-gateway/internal/models"
 	"github.com/google/uuid"
@@ -14,11 +15,13 @@ import (
 
 type TaskHandler struct {
 	queueClient *client.QueueClient
+	metrics     *metrics.ServiceMetrics
 }
 
-func NewTaskHandler(queueClient *client.QueueClient) *TaskHandler {
+func NewTaskHandler(queueClient *client.QueueClient, m *metrics.ServiceMetrics) *TaskHandler {
 	return &TaskHandler{
 		queueClient: queueClient,
+		metrics:     m,
 	}
 }
 
@@ -69,6 +72,8 @@ func (h *TaskHandler) Create(w http.ResponseWriter, r *http.Request) {
 		ID:     task.ID,
 		Status: task.Status,
 	}
+
+	h.metrics.TasksCreated.Inc()
 
 	h.sendJSON(w, response, http.StatusCreated, requestID)
 }

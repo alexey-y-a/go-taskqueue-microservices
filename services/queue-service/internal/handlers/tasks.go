@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/alexey-y-a/go-taskqueue-microservices/libs/logger"
+	"github.com/alexey-y-a/go-taskqueue-microservices/libs/metrics"
 	"github.com/alexey-y-a/go-taskqueue-microservices/libs/taskmodel"
 	"github.com/alexey-y-a/go-taskqueue-microservices/services/queue-service/internal/store"
 	"github.com/google/uuid"
@@ -13,12 +14,14 @@ import (
 )
 
 type TaskHandler struct {
-	store *store.MemoryStore
+	store   *store.MemoryStore
+	metrics *metrics.ServiceMetrics
 }
 
-func NewTaskHandler(store *store.MemoryStore) *TaskHandler {
+func NewTaskHandler(store *store.MemoryStore, m *metrics.ServiceMetrics) *TaskHandler {
 	return &TaskHandler{
-		store: store,
+		store:   store,
+		metrics: m,
 	}
 }
 
