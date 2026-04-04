@@ -1,0 +1,70 @@
+version : '3.8'
+
+networks:
+  internal:
+    driver: bridge
+    internal: false
+
+services:
+  api-gateway:
+    build:
+      context: .
+      dockerfile: services/api-gateway/Dockerfile
+    container_name: api-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - QUEUE_SERVICE_URL=http://QUEUE-service:8081
+      - CLIENT_TIMEOUT=30
+      - READ_TIMEOUT=5
+      - WRITE_TIMEOUT=10
+      - IDLE_TIMEOUT=120
+      - SHUTDOWN_TIMEOUT=10
+      - LOG_LEVEL=info
+    networks:
+      - internal
+    depends_on:
+      - queue-service
+    restart: unless-stopped
+
+  queue-service:
+    build:
+      context: .
+      dockerfile: services/queue-service/Dockerfile
+    container_name: queue-service
+    ports:
+      - 8081:8081
+    environment:
+      - PORT=8081
+      - READ_TIMEOUT=5
+      - WRITE_TIMEOUT=10
+      - IDLE_TIMEOUT=120
+      - SHUTDOWN_TIMEOUT=10
+      - LOG_LEVEL=info
+    networks:
+      - internal
+    restart: unless-stopped
+
+  worker-service:
+    build:
+      context: .
+      dockerfile: services/worker-service/Dockerfile
+    container_name: worker-service
+    ports:
+      - "8082:8082"
+    environment:
+      - PORT=8082
+      - QUEUE_SERVICE_URL=http://queue-service:8081
+      - POLL_INTERVAL=5
+      - BATCH_SIZE=10
+      - READ_TIMEOUT=5
+      - WRITE_TIMEOUT=10
+      - IDLE_TIMEOUT=120
+      - SHUTDOWN_TIMEOUT=10
+      - LOG_LEVEL=info
+    networks:
+      - internal
+    depends_on:
+      - queue-service
+    restart: unless-stopped
