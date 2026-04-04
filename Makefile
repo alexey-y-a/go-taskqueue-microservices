@@ -3,14 +3,19 @@
 # Цель по умолчанию показывает помощь
 help:
 	@echo "Доступные команды:"
-	@echo "  make tidy       - Подчистить и скачать зависимости для всех модулей"
-	@echo "  make test       - Запустить все тесты"
-	@echo "  make build      - Собрать все сервисы"
-	@echo "  make run        - Запустить все сервисы локально (не в Docker)"
-	@echo "  make docker-build - Собрать Docker образы"
-	@echo "  make up         - Запустить все через docker-compose"
-	@echo "  make down       - Остановить docker-compose"
-	@echo "  make lint       - Запустить линтер (golangci-lint)"
+	@echo "  make tidy      		 - Подчистить и скачать зависимости для всех модулей"
+	@echo "  make test       		- Запустить все тесты"
+	@echo "  make build      		- Собрать все сервисы"
+	@echo "  make run        		- Запустить все сервисы локально (не в Docker)"
+	@echo "  make docker-build 		- Собрать Docker образы"
+	@echo "  make up         		- Запустить все через docker-compose"
+	@echo "  make down       		- Остановить docker-compose"
+	@echo "  make lint       		- Запустить линтер (golangci-lint)"
+	@echo "  make logs              - Показать логи всех сервисов"
+	@echo "  make logs-api          - Логи только API Gateway"
+	@echo "  make logs-queue        - Логи только Queue Service"
+	@echo "  make logs-worker       - Логи только Worker Service"
+	@echo "  make clean             - Очистить собранные файлы"
 
 # Подчистка зависимостей
 tidy:
@@ -31,19 +36,50 @@ build:
 	cd services/queue-service && go build -o ../../bin/queue-service ./cmd/queue
 	cd services/worker-service && go build -o ../../bin/worker-service ./cmd/worker
 
+run: build
+	./bin/queue-service &
+	./bin/worker-service &
+	./bin/api-gateway
+
 # Сборка Docker образов
 docker-build:
-	docker build -t alexey-y-a/api-gateway:latest -f services/api-gateway/Dockerfile .
-	docker build -t alexey-y-a/queue-service:latest -f services/queue-service/Dockerfile .
-	docker build -t alexey-y-a/worker-service:latest -f services/worker-service/Dockerfile .
+	docker-compose build
 
 # Запуск через docker-compose
 up:
 	docker-compose up -d
+	@echo "Сервисы запущены:"
+	@echo "  API Gateway:  http://localhost:8080"
+	@echo "  Queue Service: http://localhost:8081"
+	@echo "  Worker Service: http://localhost:8082"
+	@echo ""
+	@echo "Проверить логи: make logs"
 
 # Остановка docker-compose
 down:
 	docker-compose down
+
+# Показать логи всех сервисов
+logs:
+	docker-compose logs -f
+
+# Логи только API Gateway
+logs-api:
+	docker-compose logs -f api-gateway
+
+# Логи только Queue Service
+logs-queue:
+	docker-compose logs -f queue-service
+
+# Логи только Worker Service
+logs-worker:
+	docker-compose logs -f worker-service
+
+# Очистка
+clean:
+	rm -rf bin/
+	docker-compose down -v
+	docker system prune -f
 
 # Линтинг (требует установки golangci-lint)
 lint:
