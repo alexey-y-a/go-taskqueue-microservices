@@ -14,11 +14,11 @@ import (
 )
 
 type TaskHandler struct {
-	store   *store.MemoryStore
+	store   store.TaskStore
 	metrics *metrics.ServiceMetrics
 }
 
-func NewTaskHandler(store *store.MemoryStore, m *metrics.ServiceMetrics) *TaskHandler {
+func NewTaskHandler(store store.TaskStore, m *metrics.ServiceMetrics) *TaskHandler {
 	return &TaskHandler{
 		store:   store,
 		metrics: m,
@@ -68,7 +68,7 @@ func (h *TaskHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	task := taskmodel.NewTask(id, req.Type, req.Payload)
 
-	err = h.store.Create(task)
+	err = h.store.Create(r.Context(), task)
 	if err != nil {
 		log.WithError(err).Error("Failed to save task")
 
@@ -119,7 +119,7 @@ func (h *TaskHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	log.WithField("task_id", id).Debug("Get task request")
 
-	task, err := h.store.Get(id)
+	task, err := h.store.Get(r.Context(), id)
 	if err != nil {
 		if err == store.ErrTaskNotFound {
 			log.WithField("task_id", id).Warn("Task not found")
@@ -148,7 +148,7 @@ func (h *TaskHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	log.Debug("List task request")
 
-	tasks, err := h.store.List(100, 0)
+	tasks, err := h.store.List(r.Context(), 100, 0)
 	if err != nil {
 		log.WithError(err).Error("Failed to list tasks")
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
@@ -172,7 +172,7 @@ func (h *TaskHandler) GetPending(w http.ResponseWriter, r *http.Request) {
 
 	log.Debug("Get pending task request")
 
-	tasks, err := h.store.GetPending(100)
+	tasks, err := h.store.GetPending(r.Context(), 100)
 	if err != nil {
 		log.WithError(err).Error("Failed to get pending tasks")
 		http.Error(w, "Internal server error", http.StatusInternalServerError)

@@ -9,7 +9,9 @@ import (
 
 	"github.com/alexey-y-a/go-taskqueue-microservices/libs/logger"
 	"github.com/alexey-y-a/go-taskqueue-microservices/services/queue-service/internal/config"
+	"github.com/alexey-y-a/go-taskqueue-microservices/services/queue-service/internal/db"
 	"github.com/alexey-y-a/go-taskqueue-microservices/services/queue-service/internal/server"
+	"github.com/alexey-y-a/go-taskqueue-microservices/services/queue-service/internal/store"
 	"github.com/sirupsen/logrus"
 )
 
@@ -28,7 +30,37 @@ func main() {
 		"max_tasks":        cfg.Store.MaxTasks,
 	}).Info("Configuration loaded")
 
-	srv := server.New(cfg)
+	var taskStore store.TaskStore
+
+	if cfg.Store.Type == "postgres" {
+		log.Info("Using PostgreSQL storage")
+
+		dbConfig := db.Config{
+			Host:            cfg.Postgres.Host,
+			Port:            cfg.Postgres.Port,
+			User:            cfg.Postgres.User,
+			Password:        cfg.Postgres.Password,
+			DBName:          cfg.Postgres.DBName,
+			SSLMode:         cfg.Postgres.SSLMode,
+			MaxOpenConns:    cfg.Postgres.MaxOpenConns,
+			MaxIdleConns:    cfg.Postgres.MaxIdleConns,
+			ConnMaxLifetime: cfg.Postgres.ConnMaxLifetime,
+			ConnMaxIdleTime: cfg.Postgres.ConnMaxIdleTime,
+		}
+
+		dbConn, err := db.NewConnection(dbConfig)
+		if err != nil {
+			log.WithError(err).Fatal("Failed to connect to database")
+		}
+
+		taskStore = store.NewPostgresStore(dbConn)
+		log.Info("Connected to database")
+	} else {
+		log.Info("Using in-memory storage")
+		taskStore = store.NewMemoryStore(cfg.Store.MaxTasks)
+	}
+
+	srv := server.New(cfg, taskStore)
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)

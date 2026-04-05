@@ -16,17 +16,15 @@ import (
 type Server struct {
 	httpServer *http.Server
 	config     *config.Config
-	store      *store.MemoryStore
+	store      store.TaskStore
 	metrics    *metrics.ServiceMetrics
 }
 
-func New(cfg *config.Config) *Server {
+func New(cfg *config.Config, taskStore store.TaskStore) *Server {
 
 	serviceMetrics := metrics.NewServiceMetrics("queue-service")
 
-	store := store.NewMemoryStore(cfg.Store.MaxTasks)
-
-	taskHandler := handlers.NewTaskHandler(store, serviceMetrics)
+	taskHandler := handlers.NewTaskHandler(taskStore, serviceMetrics)
 
 	mux := http.NewServeMux()
 
@@ -55,7 +53,7 @@ func New(cfg *config.Config) *Server {
 	return &Server{
 		httpServer: httpServer,
 		config:     cfg,
-		store:      store,
+		store:      taskStore,
 		metrics:    serviceMetrics,
 	}
 }
