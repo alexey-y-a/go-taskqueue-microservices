@@ -19,6 +19,21 @@ type Config struct {
 
 	Store struct {
 		MaxTasks int
+		Type     string
+	}
+
+	Postgres struct {
+		Host     string
+		Port     int
+		User     string
+		Password string
+		DBName   string
+		SSLMode  string
+
+		MaxOpenConns    int
+		MaxIdleConns    int
+		ConnMaxLifetime time.Duration
+		ConnMaxIdleTime time.Duration
 	}
 }
 
@@ -33,6 +48,19 @@ func New() *Config {
 	cfg.Server.IdleTimeout = 120 * time.Second
 
 	cfg.Store.MaxTasks = 10000
+	cfg.Store.Type = "memory"
+
+	cfg.Postgres.Host = "localhost"
+	cfg.Postgres.Port = 5432
+	cfg.Postgres.User = "postgres"
+	cfg.Postgres.Password = "postgres"
+	cfg.Postgres.DBName = "queue_service"
+	cfg.Postgres.SSLMode = "disable"
+
+	cfg.Postgres.MaxOpenConns = 25
+	cfg.Postgres.MaxIdleConns = 10
+	cfg.Postgres.ConnMaxLifetime = 5 * time.Minute
+	cfg.Postgres.ConnMaxIdleTime = 2 * time.Minute
 
 	portStr := os.Getenv("PORT")
 	if portStr != "" {
@@ -42,44 +70,38 @@ func New() *Config {
 		}
 	}
 
-	timeoutStr := os.Getenv("READ_TIMEOUT")
-	if timeoutStr != "" {
-		timeout, err := strconv.Atoi(timeoutStr)
+	storeType := os.Getenv("STORE_TYPE")
+	if storeType != "" {
+		cfg.Store.Type = storeType
+	}
+
+	host := os.Getenv("POSTGRES_HOST")
+	if host != "" {
+		cfg.Postgres.Host = host
+	}
+
+	portStr = os.Getenv("POSTGRES_PORT")
+	if portStr != "" {
+		port, err := strconv.Atoi(portStr)
 		if err == nil {
-			cfg.Server.ReadTimeout = time.Duration(timeout) * time.Second
+			cfg.Postgres.Port = port
 		}
 	}
 
-	timeoutStr = os.Getenv("WRITE_TIMEOUT")
-	if timeoutStr != "" {
-		timeout, err := strconv.Atoi(timeoutStr)
-		if err == nil {
-			cfg.Server.WriteTimeout = time.Duration(timeout) * time.Second
-		}
+	user := os.Getenv("POSTGRES_USER")
+	if user != "" {
+		cfg.Postgres.User = user
 	}
 
-	timeoutStr = os.Getenv("IDLE_TIMEOUT")
-	if timeoutStr != "" {
-		timeout, err := strconv.Atoi(timeoutStr)
-		if err == nil {
-			cfg.Server.IdleTimeout = time.Duration(timeout) * time.Second
-		}
+	password := os.Getenv("POSTGRES_PASSWORD")
+	if password != "" {
+		cfg.Postgres.Password = password
 	}
 
-	timeoutStr = os.Getenv("SHUTDOWN_TIMEOUT")
-	if timeoutStr != "" {
-		timeout, err := strconv.Atoi(timeoutStr)
-		if err == nil {
-			cfg.ShutdownTimeout = time.Duration(timeout) * time.Second
-		}
+	dbname := os.Getenv("POSTGRES_DB")
+	if dbname != "" {
+		cfg.Postgres.DBName = dbname
 	}
 
-	maxTasksStr := os.Getenv("MAX_TASKS")
-	if maxTasksStr != "" {
-		maxTasks, err := strconv.Atoi(maxTasksStr)
-		if err == nil {
-			cfg.Store.MaxTasks = maxTasks
-		}
-	}
 	return cfg
 }

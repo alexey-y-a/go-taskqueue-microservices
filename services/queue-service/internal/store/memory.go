@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
@@ -26,7 +27,7 @@ func NewMemoryStore(maxLen int) *MemoryStore {
 	}
 }
 
-func (s *MemoryStore) Create(task *taskmodel.Task) error {
+func (s *MemoryStore) Create(ctx context.Context, task *taskmodel.Task) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -44,7 +45,7 @@ func (s *MemoryStore) Create(task *taskmodel.Task) error {
 	return nil
 }
 
-func (s *MemoryStore) Get(id string) (*taskmodel.Task, error) {
+func (s *MemoryStore) Get(ctx context.Context, id string) (*taskmodel.Task, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -56,7 +57,7 @@ func (s *MemoryStore) Get(id string) (*taskmodel.Task, error) {
 	return task, nil
 }
 
-func (s *MemoryStore) Update(task *taskmodel.Task) error {
+func (s *MemoryStore) Update(ctx context.Context, task *taskmodel.Task) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -70,7 +71,7 @@ func (s *MemoryStore) Update(task *taskmodel.Task) error {
 	return nil
 }
 
-func (s *MemoryStore) Delete(id string) error {
+func (s *MemoryStore) Delete(ctx context.Context, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -84,7 +85,7 @@ func (s *MemoryStore) Delete(id string) error {
 	return nil
 }
 
-func (s *MemoryStore) List(limit, offset int) ([]*taskmodel.Task, error) {
+func (s *MemoryStore) List(ctx context.Context, limit, offset int) ([]*taskmodel.Task, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -113,7 +114,7 @@ func (s *MemoryStore) List(limit, offset int) ([]*taskmodel.Task, error) {
 
 }
 
-func (s *MemoryStore) GetPending(limit int) ([]*taskmodel.Task, error) {
+func (s *MemoryStore) GetPending(ctx context.Context, limit int) ([]*taskmodel.Task, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -136,9 +137,26 @@ func (s *MemoryStore) GetPending(limit int) ([]*taskmodel.Task, error) {
 	return tasks, nil
 }
 
-func (s *MemoryStore) Count() int {
+func (s *MemoryStore) Count(ctx context.Context) (int, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	return len(s.tasks)
+	return len(s.tasks), nil
+}
+
+func (s *MemoryStore) UpdateStatus(ctx context.Context, id string, status taskmodel.TaskStatus, errMsg string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	task, exists := s.tasks[id]
+	if !exists {
+		return ErrTaskNotFound
+	}
+
+	task.Status = status
+	if errMsg != "" {
+		task.Error = errMsg
+	}
+
+	return nil
 }
