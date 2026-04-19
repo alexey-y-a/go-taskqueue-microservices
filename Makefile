@@ -84,3 +84,33 @@ clean:
 # Линтинг (требует установки golangci-lint)
 lint:
 	golangci-lint run ./...
+
+# Запуск всех тестов (unit + integration)
+test:
+	go test -v ./...
+
+# Запуск только unit тестов (без интеграционных)
+test-unit:
+	go test -v -short ./...
+
+# Запуск интеграционных тестов
+test-integration:
+	@echo "Running integration tests..."
+	go test -tags=integration -v ./... -count=1
+
+# Запуск интеграционных тестов с очисткой кэша
+test-integration-clean:
+	@echo "Running integration tests (no cache)..."
+	go clean -testcache
+	go test -tags=integration -v ./... -count=1
+
+# Запуск тестов с покрытием
+test-coverage:
+	go test -coverprofile=coverage.out ./...
+	go tool cover -html=coverage.out -o coverage.html
+	@echo "Coverage report: coverage.html"
+
+# Запуск интеграционных тестов с помощью скрипта
+test-integration-script:
+	chmod +x scripts/test-integration.sh
+	./scripts/test-integration.sh

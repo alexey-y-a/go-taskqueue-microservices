@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/alexey-y-a/go-taskqueue-microservices/libs/logger"
+	"github.com/alexey-y-a/go-taskqueue-microservices/libs/metrics"
 	"github.com/alexey-y-a/go-taskqueue-microservices/services/worker-service/internal/client"
 	"github.com/alexey-y-a/go-taskqueue-microservices/services/worker-service/internal/config"
 	"github.com/alexey-y-a/go-taskqueue-microservices/services/worker-service/internal/handlers"
@@ -22,11 +23,14 @@ type Server struct {
 func New(cfg *config.Config) *Server {
 	httpClient := client.NewHttpClient(cfg.Client.QueueServiceURL, cfg.Client.Timeout)
 
+	metricsSvc := metrics.NewServiceMetrics("worker-service")
+
 	w := worker.New(
 		httpClient,
 		cfg.Worker.BatchSize,
 		cfg.Worker.PollInterval,
 		cfg.Worker.RetryDelay,
+		metricsSvc,
 	)
 
 	mux := http.NewServeMux()
