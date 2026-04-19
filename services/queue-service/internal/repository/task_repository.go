@@ -20,7 +20,7 @@ func NewTaskRepository(db *sqlx.DB) *TaskRepository {
 
 func (r *TaskRepository) Create(ctx context.Context, task *taskmodel.Task) error {
 	query := `
-              IBSERT INTO tasks (id, type, payload, status, error, created_at, updated_at, completed_at)
+              INSERT INTO tasks (id, type, payload, status, error, created_at, updated_at, completed_at)
               VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
     `
 
@@ -91,16 +91,17 @@ func (r *TaskRepository) Update(ctx context.Context, task *taskmodel.Task) error
 
 func (r *TaskRepository) List(ctx context.Context, limit, offset int) ([]*taskmodel.Task, error) {
 	query := `
-              SELECT id, type, payload, status, error, created_at, updated_at, completed_at
-              FROM tasks
-              ORDER BY created_at DESC 
-              LIMIT $1 OFFSET $2
-    `
+		SELECT id, type, payload, status, error, created_at, updated_at, completed_at
+		FROM tasks
+		ORDER BY created_at DESC 
+		LIMIT $1 OFFSET $2
+	`
 
 	tasks := []*taskmodel.Task{}
-	err := r.db.SelectContext(ctx, &tasks, query, limit)
+
+	err := r.db.SelectContext(ctx, &tasks, query, limit, offset)
 	if err != nil {
-		return nil, fmt.Errorf("get pending tasks: %w", err)
+		return nil, fmt.Errorf("get tasks: %w", err)
 	}
 
 	return tasks, nil
@@ -138,14 +139,25 @@ func (r *TaskRepository) Count(ctx context.Context) (int, error) {
 
 func (r *TaskRepository) UpdateStatus(ctx context.Context, id string, status taskmodel.TaskStatus, errMsg string) error {
 	query := `
-              UPDATE tasks
-              SET status = $1, error = $2, updated_at = $3,
-                  completed_at = CASE WHEN $1 IN ('completed', 'failed') THEN $3 ELSE NULL END
-              WHERE id = $4
-   `
+		UPDATE tasks
+		SET status = $1::VARCHAR, 
+		    error = $2::TEXT, 
+		    updated_at = $3::TIMESTAMP,
+		    completed_at = CASE 
+		        WHEN $1::VARCHAR IN ('completed', 'failed') THEN $3::TIMESTAMP 
+		        ELSE NULL 
+		    END
+		WHERE id = $4::VARCHAR
+	`
 
 	now := time.Now().UTC()
-	result, err := r.db.ExecContext(ctx, query, status, errMsg, now, id)
+
+	result, err := r.db.ExecContext(ctx, query,
+		string(status),
+		errMsg,
+		now,
+		id,
+	)
 	if err != nil {
 		return fmt.Errorf("update task: %w", err)
 	}

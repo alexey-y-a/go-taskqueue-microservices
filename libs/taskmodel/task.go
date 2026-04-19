@@ -12,14 +12,14 @@ const (
 )
 
 type Task struct {
-	ID          string            `json:"id"`
-	Type        string            `json:"type"`
-	Payload     string            `json:"payload"`
-	Status      TaskStatus        `json:"status"`
-	CreatedAt   time.Time         `json:"created_at"`
-	UpdatedAt   time.Time         `json:"updated_at"`
-	CompletedAt *time.Time        `json:"completed_at"`
-	Error       string            `json:"error,omitempty"`
+	ID          string            `json:"id" db:"id"`
+	Type        string            `json:"type" db:"type"`
+	Payload     string            `json:"payload" db:"payload"`
+	Status      TaskStatus        `json:"status" db:"status"`
+	CreatedAt   time.Time         `json:"created_at" db:"created_at"`
+	UpdatedAt   time.Time         `json:"updated_at" db:"updated_at"`
+	CompletedAt *time.Time        `json:"completed_at" db:"completed_at"`
+	Error       string            `json:"error,omitempty" db:"error"`
 	Labels      map[string]string `json:"labels,omitempty"`
 }
 

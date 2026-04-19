@@ -6,9 +6,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alexey-y-a/go-taskqueue-microservices/libs/metrics"
 	"github.com/alexey-y-a/go-taskqueue-microservices/libs/taskmodel"
 	"github.com/alexey-y-a/go-taskqueue-microservices/services/worker-service/internal/mocks"
 	"github.com/golang/mock/gomock"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 func TestWorker_ProcessTasks(t *testing.T) {
@@ -23,7 +25,9 @@ func TestWorker_ProcessTasks(t *testing.T) {
 
 	mockClient.EXPECT().UpdateTaskStatus(gomock.Any(), "task-1", taskmodel.StatusCompleted, "").Return(nil).MinTimes(1)
 
-	w := New(mockClient, 10, 100*time.Millisecond, 50*time.Millisecond)
+	registry := prometheus.NewRegistry()
+	metricsSvc := metrics.NewServiceMetricsWithRegistry("test_worker", registry)
+	w := New(mockClient, 10, 100*time.Millisecond, 50*time.Millisecond, metricsSvc)
 
 	ctx := context.Background()
 
@@ -46,7 +50,9 @@ func TestWorker_ProcessTasks_Failure(t *testing.T) {
 
 	mockClient.EXPECT().UpdateTaskStatus(gomock.Any(), "task-1", taskmodel.StatusFailed, gomock.Any()).Return(nil).MinTimes(1)
 
-	w := New(mockClient, 10, 100*time.Millisecond, 50*time.Millisecond)
+	registry := prometheus.NewRegistry()
+	metricsSvc := metrics.NewServiceMetricsWithRegistry("test_worker", registry)
+	w := New(mockClient, 10, 100*time.Millisecond, 50*time.Millisecond, metricsSvc)
 	ctx := context.Background()
 
 	w.Start(ctx)
@@ -62,7 +68,9 @@ func TestWorker_ProcessTasks_ClientError(t *testing.T) {
 
 	mockClient.EXPECT().GetPendingTasks(gomock.Any(), 10).Return(nil, errors.New("connection failed")).MinTimes(1)
 
-	w := New(mockClient, 10, 100*time.Millisecond, 50*time.Millisecond)
+	registry := prometheus.NewRegistry()
+	metricsSvc := metrics.NewServiceMetricsWithRegistry("test_worker", registry)
+	w := New(mockClient, 10, 100*time.Millisecond, 50*time.Millisecond, metricsSvc)
 
 	ctx := context.Background()
 

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 type ServiceMetrics struct {
@@ -20,62 +19,86 @@ type ServiceMetrics struct {
 	TasksInQueue   prometheus.Gauge
 }
 
-func NewServiceMetrics(serviceName string) *ServiceMetrics {
+func NewServiceMetricsWithRegistry(serviceName string, reg prometheus.Registerer) *ServiceMetrics {
 	prefix := serviceName + "_"
 
-	return &ServiceMetrics{
-		RequestTotal: promauto.NewCounterVec(
-			prometheus.CounterOpts{
-				Name: prefix + "http_requests_total",
-				Help: "Total number of HTTP requests.",
-			},
-			[]string{"method", "path", "status"},
-		),
+	requestTotal := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: prefix + "http_requests_total",
+			Help: "Total number of HTTP requests.",
+		},
+		[]string{"method", "path", "status"},
+	)
 
-		RequestDuration: promauto.NewHistogramVec(
-			prometheus.HistogramOpts{
-				Name:    prefix + "http_request_duration_seconds",
-				Help:    "HTTP request duration in seconds",
-				Buckets: prometheus.DefBuckets,
-			},
-			[]string{"method", "path"},
-		),
+	requestDuration := prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    prefix + "http_request_duration_seconds",
+			Help:    "HTTP request duration in seconds",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"method", "path"},
+	)
 
-		RequestInFlight: promauto.NewGauge(
-			prometheus.GaugeOpts{
-				Name: prefix + "http_requests_in_flight",
-				Help: "Current number of HTTP requests being processed",
-			},
-		),
+	requestInFlight := prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: prefix + "http_requests_in_flight",
+			Help: "Current number of HTTP requests being processed",
+		},
+	)
 
-		TasksCreated: promauto.NewCounter(
-			prometheus.CounterOpts{
-				Name: prefix + "tasks_created_total",
-				Help: "Total number of tasks created",
-			},
-		),
+	tasksCreated := prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: prefix + "tasks_created_total",
+			Help: "Total number of tasks created",
+		},
+	)
 
-		TasksProcessed: promauto.NewCounter(
-			prometheus.CounterOpts{
-				Name: prefix + "tasks_processed_total",
-				Help: "Total number of tasks processed",
-			},
-		),
+	tasksProcessed := prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: prefix + "tasks_processed_total",
+			Help: "Total number of tasks processed",
+		},
+	)
 
-		TasksFailed: promauto.NewCounter(
-			prometheus.CounterOpts{
-				Name: prefix + "tasks_failed_total",
-				Help: "Total number of tasks failed",
-			},
-		),
+	tasksFailed := prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: prefix + "tasks_failed_total",
+			Help: "Total number of tasks failed",
+		},
+	)
 
-		TasksInQueue: promauto.NewGauge(
-			prometheus.GaugeOpts{
-				Name: prefix + "tasks_in_queue",
-				Help: "Current number of tasks in queue",
-			},
-		),
+	tasksInQueue := prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: prefix + "tasks_in_queue",
+			Help: "Current number of tasks in queue",
+		},
+	)
+
+	if reg != nil {
+		reg.MustRegister(
+			requestTotal,
+			requestDuration,
+			requestInFlight,
+			tasksCreated,
+			tasksProcessed,
+			tasksFailed,
+			tasksInQueue,
+		)
 	}
+
+	return &ServiceMetrics{
+		RequestTotal:    requestTotal,
+		RequestDuration: requestDuration,
+		RequestInFlight: requestInFlight,
+		TasksCreated:    tasksCreated,
+		TasksProcessed:  tasksProcessed,
+		TasksFailed:     tasksFailed,
+		TasksInQueue:    tasksInQueue,
+	}
+}
+
+func NewServiceMetrics(serviceName string) *ServiceMetrics {
+	return NewServiceMetricsWithRegistry(serviceName, prometheus.DefaultRegisterer)
 }
 
 func (m *ServiceMetrics) MetricsMiddleware(next http.HandlerFunc) http.HandlerFunc {

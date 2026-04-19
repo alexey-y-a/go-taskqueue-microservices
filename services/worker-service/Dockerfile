@@ -1,4 +1,4 @@
-FROM golang:1.26-apline AS builder
+FROM golang:1.26-alpine AS builder
 
 WORKDIR /app
 
@@ -8,7 +8,7 @@ RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /worker-service ./service/worker-service/cmd/worker
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /worker-service ./services/worker-service/cmd/worker
 
 # === Stage 2 ===
 
