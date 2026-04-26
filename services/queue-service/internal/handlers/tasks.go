@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/alexey-y-a/go-taskqueue-microservices/libs/kafka"
 	"github.com/alexey-y-a/go-taskqueue-microservices/libs/logger"
 	"github.com/alexey-y-a/go-taskqueue-microservices/libs/metrics"
 	"github.com/alexey-y-a/go-taskqueue-microservices/libs/taskmodel"
@@ -14,14 +15,16 @@ import (
 )
 
 type TaskHandler struct {
-	store   store.TaskStore
-	metrics *metrics.ServiceMetrics
+	store    store.TaskStore
+	metrics  *metrics.ServiceMetrics
+	producer *kafka.Producer
 }
 
-func NewTaskHandler(store store.TaskStore, m *metrics.ServiceMetrics) *TaskHandler {
+func NewTaskHandler(store store.TaskStore, m *metrics.ServiceMetrics, producer *kafka.Producer) *TaskHandler {
 	return &TaskHandler{
-		store:   store,
-		metrics: m,
+		store:    store,
+		metrics:  m,
+		producer: producer,
 	}
 }
 
@@ -82,6 +85,17 @@ func (h *TaskHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.producer != nil {
+		eventData := map[string]interface{}{
+			"type":    task.Type,
+			"payload": task.Payload,
+		}
+		err := h.producer.SendEvent(r.Context(), "task_created", task.ID, eventData)
+		if err != nil {
+			log.WithError(err).Warn("Failed to send Kafka event")
+		}
+	}
+
 	log.WithFields(logrus.Fields{
 		"task_id": task.ID,
 		"type":    task.Type,
@@ -100,8 +114,8 @@ func (h *TaskHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.WithError(err).Error("Failed to encode response")
 	}
-
 }
+
 func (h *TaskHandler) Get(w http.ResponseWriter, r *http.Request) {
 	log := logger.WithFields("queue-service", logrus.Fields{
 		"method": r.Method,

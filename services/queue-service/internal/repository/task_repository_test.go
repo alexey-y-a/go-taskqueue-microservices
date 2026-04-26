@@ -28,8 +28,8 @@ type TaskRepositoryTestSuite struct {
 func (s *TaskRepositoryTestSuite) SetupSuite() {
 	s.ctx = context.Background()
 
-	postgresContainer, err := postgres.RunContainer(s.ctx,
-		testcontainers.WithImage("postgres:17-alpine"),
+	postgresContainer, err := postgres.Run(s.ctx,
+		"postgres:17-alpine",
 		postgres.WithDatabase("testdb"),
 		postgres.WithUsername("testuser"),
 		postgres.WithPassword("testpassword"),

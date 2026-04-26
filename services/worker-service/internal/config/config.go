@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -28,6 +29,15 @@ type Config struct {
 		Timeout         time.Duration
 		MaxRetries      int
 	}
+
+	WorkerMode string
+
+	Kafka struct {
+		Enabled       bool
+		Brokers       []string
+		Topic         string
+		ConsumerGroup string
+	}
 }
 
 func New() *Config {
@@ -48,65 +58,76 @@ func New() *Config {
 	cfg.Client.Timeout = 30 * time.Second
 	cfg.Client.MaxRetries = 3
 
-	portStr := os.Getenv("PORT")
-	if portStr != "" {
-		port, err := strconv.Atoi(portStr)
-		if err == nil {
+	cfg.WorkerMode = "polling"                     // По умолчанию polling режим
+	cfg.Kafka.Enabled = false                      // Kafka выключена по умолчанию
+	cfg.Kafka.Brokers = []string{"localhost:9092"} // Брокер по умолчанию
+	cfg.Kafka.Topic = "tasks"                      // Топик по умолчанию
+	cfg.Kafka.ConsumerGroup = "worker-group"       // Группа потребителей
+
+	if portStr := os.Getenv("PORT"); portStr != "" {
+		if port, err := strconv.Atoi(portStr); err == nil {
 			cfg.Port = port
 		}
 	}
 
-	timeoutStr := os.Getenv("READ_TIMEOUT")
-	if timeoutStr != "" {
-		timeout, err := strconv.Atoi(timeoutStr)
-		if err == nil {
+	if timeoutStr := os.Getenv("READ_TIMEOUT"); timeoutStr != "" {
+		if timeout, err := strconv.Atoi(timeoutStr); err == nil {
 			cfg.Server.ReadTimeout = time.Duration(timeout) * time.Second
 		}
 	}
 
-	timeoutStr = os.Getenv("WRITE_TIMEOUT")
-	if timeoutStr != "" {
-		timeout, err := strconv.Atoi(timeoutStr)
-		if err == nil {
+	if timeoutStr := os.Getenv("WRITE_TIMEOUT"); timeoutStr != "" {
+		if timeout, err := strconv.Atoi(timeoutStr); err == nil {
 			cfg.Server.WriteTimeout = time.Duration(timeout) * time.Second
 		}
 	}
 
-	timeoutStr = os.Getenv("IDLE_TIMEOUT")
-	if timeoutStr != "" {
-		timeout, err := strconv.Atoi(timeoutStr)
-		if err == nil {
+	if timeoutStr := os.Getenv("IDLE_TIMEOUT"); timeoutStr != "" {
+		if timeout, err := strconv.Atoi(timeoutStr); err == nil {
 			cfg.Server.IdleTimeout = time.Duration(timeout) * time.Second
 		}
 	}
 
-	timeoutStr = os.Getenv("SHUTDOWN_TIMEOUT")
-	if timeoutStr != "" {
-		timeout, err := strconv.Atoi(timeoutStr)
-		if err == nil {
+	if timeoutStr := os.Getenv("SHUTDOWN_TIMEOUT"); timeoutStr != "" {
+		if timeout, err := strconv.Atoi(timeoutStr); err == nil {
 			cfg.ShutdownTimeout = time.Duration(timeout) * time.Second
 		}
 	}
 
-	timeoutStr = os.Getenv("POLL_INTERVAL")
-	if timeoutStr != "" {
-		timeout, err := strconv.Atoi(timeoutStr)
-		if err == nil {
+	if timeoutStr := os.Getenv("POLL_INTERVAL"); timeoutStr != "" {
+		if timeout, err := strconv.Atoi(timeoutStr); err == nil {
 			cfg.Worker.PollInterval = time.Duration(timeout) * time.Second
 		}
 	}
 
-	batchSizeStr := os.Getenv("BATCH_SIZE")
-	if batchSizeStr != "" {
-		batchSize, err := strconv.Atoi(batchSizeStr)
-		if err == nil {
+	if batchSizeStr := os.Getenv("BATCH_SIZE"); batchSizeStr != "" {
+		if batchSize, err := strconv.Atoi(batchSizeStr); err == nil {
 			cfg.Worker.BatchSize = batchSize
 		}
 	}
 
-	queueURL := os.Getenv("QUEUE_SERVICE_URL")
-	if queueURL != "" {
+	if queueURL := os.Getenv("QUEUE_SERVICE_URL"); queueURL != "" {
 		cfg.Client.QueueServiceURL = queueURL
+	}
+
+	if mode := os.Getenv("WORKER_MODE"); mode != "" {
+		cfg.WorkerMode = mode
+	}
+
+	if enabled := os.Getenv("KAFKA_ENABLED"); enabled == "true" {
+		cfg.Kafka.Enabled = true
+	}
+
+	if brokers := os.Getenv("KAFKA_BROKERS"); brokers != "" {
+		cfg.Kafka.Brokers = strings.Split(brokers, ",")
+	}
+
+	if topic := os.Getenv("KAFKA_TOPIC"); topic != "" {
+		cfg.Kafka.Topic = topic
+	}
+
+	if group := os.Getenv("KAFKA_CONSUMER_GROUP"); group != "" {
+		cfg.Kafka.ConsumerGroup = group
 	}
 
 	return cfg
