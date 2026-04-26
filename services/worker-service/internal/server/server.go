@@ -17,11 +17,11 @@ import (
 type Server struct {
 	httpServer *http.Server
 	config     *config.Config
-	worker     *worker.Worker
+	worker     *worker.KafkaWorker
 }
 
 func New(cfg *config.Config) *Server {
-	httpClient := client.NewHttpClient(cfg.Client.QueueServiceURL, cfg.Client.Timeout)
+	httpClient := client.NewHTTPClient(cfg.Client.QueueServiceURL, cfg.Client.Timeout)
 
 	metricsSvc := metrics.NewServiceMetrics("worker-service")
 

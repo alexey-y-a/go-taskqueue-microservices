@@ -10,5 +10,7 @@ import (
 type QueueServiceClient interface {
 	GetPendingTasks(ctx context.Context, limit int) ([]*taskmodel.Task, error)
 
+	GetTask(ctx context.Context, taskID string) (*taskmodel.Task, error)
+
 	UpdateTaskStatus(ctx context.Context, taskID string, status taskmodel.TaskStatus, errMsg string) error
 }

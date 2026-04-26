@@ -16,7 +16,7 @@ type HTTPClient struct {
 	httpClient *http.Client
 }
 
-func NewHttpClient(baseURL string, timeout time.Duration) *HTTPClient {
+func NewHTTPClient(baseURL string, timeout time.Duration) *HTTPClient {
 	return &HTTPClient{
 		baseURL: baseURL,
 		httpClient: &http.Client{
@@ -89,4 +89,33 @@ func (c *HTTPClient) UpdateTaskStatus(ctx context.Context, taskID string, status
 	}
 
 	return nil
+}
+
+func (c *HTTPClient) GetTask(ctx context.Context, taskID string) (*taskmodel.Task, error) {
+	url := fmt.Sprintf("%s/tasks/%s", c.baseURL, taskID)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("do request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("task not found")
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status: %s", resp.Status)
+	}
+
+	var task taskmodel.Task
+	if err := json.NewDecoder(resp.Body).Decode(&task); err != nil {
+		return nil, fmt.Errorf("decode response: %w", err)
+	}
+
+	return &task, nil
 }
