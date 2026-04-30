@@ -7,6 +7,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/alexey-y-a/go-taskqueue-microservices/libs/kafka"
 	"github.com/alexey-y-a/go-taskqueue-microservices/libs/logger"
 	"github.com/alexey-y-a/go-taskqueue-microservices/services/queue-service/internal/config"
 	"github.com/alexey-y-a/go-taskqueue-microservices/services/queue-service/internal/db"
@@ -17,9 +18,7 @@ import (
 
 func main() {
 	logger.Init()
-
 	log := logger.WithComponent("queue-service")
-
 	log.Info("Starting queue service")
 
 	cfg := config.New()
@@ -28,7 +27,21 @@ func main() {
 		"port":             cfg.Port,
 		"shutdown_timeout": cfg.ShutdownTimeout,
 		"max_tasks":        cfg.Store.MaxTasks,
+		"kafka_enabled":    cfg.Kafka.Enabled,
 	}).Info("Configuration loaded")
+
+	var producer *kafka.Producer
+	var err error
+	if cfg.Kafka.Enabled {
+		producer, err = kafka.NewProducer(kafka.Config{
+			Brokers: cfg.Kafka.Brokers,
+			Topic:   cfg.Kafka.Topic,
+		})
+		if err != nil {
+			log.WithError(err).Fatal("Failed to create Kafka producer")
+		}
+		log.Info("Kafka producer initialized")
+	}
 
 	var taskStore store.TaskStore
 
@@ -60,7 +73,7 @@ func main() {
 		taskStore = store.NewMemoryStore(cfg.Store.MaxTasks)
 	}
 
-	srv := server.New(cfg, taskStore)
+	srv := server.New(cfg, taskStore, producer)
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
@@ -81,14 +94,17 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
 	defer cancel()
 
-	err := srv.Stop(ctx)
+	err = srv.Stop(ctx)
 	if err != nil {
 		log.WithError(err).Error("Graceful shutdown failed")
 	} else {
 		log.Info("Graceful shutdown succeeded")
 	}
 
+	if producer != nil {
+		producer.Close()
+	}
+
 	time.Sleep(100 * time.Millisecond)
 	log.Info("Queue service stopped")
-
 }

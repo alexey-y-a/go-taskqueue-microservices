@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -20,6 +21,12 @@ type Config struct {
 	Store struct {
 		MaxTasks int
 		Type     string
+	}
+
+	Kafka struct {
+		Enabled bool
+		Brokers []string
+		Topic   string
 	}
 
 	Postgres struct {
@@ -50,6 +57,10 @@ func New() *Config {
 	cfg.Store.MaxTasks = 10000
 	cfg.Store.Type = "memory"
 
+	cfg.Kafka.Enabled = false
+	cfg.Kafka.Brokers = []string{"localhost:9092"}
+	cfg.Kafka.Topic = "tasks"
+
 	cfg.Postgres.Host = "localhost"
 	cfg.Postgres.Port = 5432
 	cfg.Postgres.User = "postgres"
@@ -62,44 +73,45 @@ func New() *Config {
 	cfg.Postgres.ConnMaxLifetime = 5 * time.Minute
 	cfg.Postgres.ConnMaxIdleTime = 2 * time.Minute
 
-	portStr := os.Getenv("PORT")
-	if portStr != "" {
-		port, err := strconv.Atoi(portStr)
-		if err == nil {
+	if portStr := os.Getenv("PORT"); portStr != "" {
+		if port, err := strconv.Atoi(portStr); err == nil {
 			cfg.Port = port
 		}
 	}
 
-	storeType := os.Getenv("STORE_TYPE")
-	if storeType != "" {
+	if enabled := os.Getenv("KAFKA_ENABLED"); enabled == "true" {
+		cfg.Kafka.Enabled = true
+	}
+	if brokers := os.Getenv("KAFKA_BROKERS"); brokers != "" {
+		cfg.Kafka.Brokers = strings.Split(brokers, ",")
+	}
+	if topic := os.Getenv("KAFKA_TOPIC"); topic != "" {
+		cfg.Kafka.Topic = topic
+	}
+
+	if storeType := os.Getenv("STORE_TYPE"); storeType != "" {
 		cfg.Store.Type = storeType
 	}
 
-	host := os.Getenv("POSTGRES_HOST")
-	if host != "" {
+	if host := os.Getenv("POSTGRES_HOST"); host != "" {
 		cfg.Postgres.Host = host
 	}
 
-	portStr = os.Getenv("POSTGRES_PORT")
-	if portStr != "" {
-		port, err := strconv.Atoi(portStr)
-		if err == nil {
+	if portStr := os.Getenv("POSTGRES_PORT"); portStr != "" {
+		if port, err := strconv.Atoi(portStr); err == nil {
 			cfg.Postgres.Port = port
 		}
 	}
 
-	user := os.Getenv("POSTGRES_USER")
-	if user != "" {
+	if user := os.Getenv("POSTGRES_USER"); user != "" {
 		cfg.Postgres.User = user
 	}
 
-	password := os.Getenv("POSTGRES_PASSWORD")
-	if password != "" {
+	if password := os.Getenv("POSTGRES_PASSWORD"); password != "" {
 		cfg.Postgres.Password = password
 	}
 
-	dbname := os.Getenv("POSTGRES_DB")
-	if dbname != "" {
+	if dbname := os.Getenv("POSTGRES_DB"); dbname != "" {
 		cfg.Postgres.DBName = dbname
 	}
 

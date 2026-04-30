@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/alexey-y-a/go-taskqueue-microservices/libs/clickhouse"
 	"github.com/alexey-y-a/go-taskqueue-microservices/libs/logger"
 	"github.com/alexey-y-a/go-taskqueue-microservices/libs/metrics"
 	"github.com/alexey-y-a/go-taskqueue-microservices/services/api-gateway/internal/client"
@@ -19,7 +20,7 @@ type Server struct {
 	metrics    *metrics.ServiceMetrics
 }
 
-func New(cfg *config.Config) *Server {
+func New(cfg *config.Config, chClient *clickhouse.Client) *Server {
 
 	serviceMetrics := metrics.NewServiceMetrics("api_gateway")
 
@@ -28,6 +29,8 @@ func New(cfg *config.Config) *Server {
 	rootHandler := handlers.RootHandler()
 	healthHandler := handlers.HealthHandler()
 	taskHandler := handlers.NewTaskHandler(queueClient, serviceMetrics)
+
+	analyticsHandler := handlers.NewAnalyticsHandler(chClient)
 
 	rootHandlerWithMetrics := serviceMetrics.MetricsMiddleware(rootHandler)
 	healthHandlerWithMetrics := serviceMetrics.MetricsMiddleware(healthHandler)
@@ -40,6 +43,8 @@ func New(cfg *config.Config) *Server {
 	mux.HandleFunc("POST /tasks", taskHandler.Create)
 	mux.HandleFunc("GET /tasks/", taskHandler.Get)
 	mux.HandleFunc("GET /tasks", taskHandler.List)
+
+	mux.HandleFunc("GET /analytics/daily", analyticsHandler.GetDailyStats)
 
 	httpServer := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Port),

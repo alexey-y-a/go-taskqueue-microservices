@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/alexey-y-a/go-taskqueue-microservices/libs/kafka"
 	"github.com/alexey-y-a/go-taskqueue-microservices/libs/logger"
 	"github.com/alexey-y-a/go-taskqueue-microservices/libs/metrics"
 	"github.com/alexey-y-a/go-taskqueue-microservices/services/queue-service/internal/config"
@@ -20,17 +21,26 @@ type Server struct {
 	metrics    *metrics.ServiceMetrics
 }
 
-func New(cfg *config.Config, taskStore store.TaskStore) *Server {
+func New(cfg *config.Config, taskStore store.TaskStore, producer *kafka.Producer) *Server {
 
-	serviceMetrics := metrics.NewServiceMetrics("queue-service")
+	serviceMetrics := metrics.NewServiceMetrics("queue_service")
 
-	taskHandler := handlers.NewTaskHandler(taskStore, serviceMetrics)
+	taskHandler := handlers.NewTaskHandler(taskStore, serviceMetrics, producer)
 
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/healthz", handlers.HealthHandler())
 	mux.HandleFunc("POST /tasks", taskHandler.Create)
-	mux.HandleFunc("GET /tasks/", taskHandler.Get)
+	mux.HandleFunc("/tasks/", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			taskHandler.Get(w, r)
+		case http.MethodPut, http.MethodPatch:
+			taskHandler.Update(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
 	mux.HandleFunc("GET /tasks", taskHandler.List)
 	mux.HandleFunc("GET /tasks/pending", taskHandler.GetPending)
 

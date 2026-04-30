@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/alexey-y-a/go-taskqueue-microservices/libs/kafka"
 	"github.com/alexey-y-a/go-taskqueue-microservices/libs/logger"
 	"github.com/alexey-y-a/go-taskqueue-microservices/libs/metrics"
 	"github.com/alexey-y-a/go-taskqueue-microservices/libs/taskmodel"
@@ -13,102 +12,130 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type KafkaWorker struct {
-	queueClient client.QueueServiceClient
-	consumer    *kafka.Consumer
-	metrics     *metrics.ServiceMetrics
-	stopChan    chan struct{}
-	doneChan    chan struct{}
+type Worker struct {
+	queueClient  client.QueueServiceClient
+	batchSize    int
+	pollInterval time.Duration
+	retryDelay   time.Duration
+	metrics      *metrics.ServiceMetrics
+	stopChan     chan struct{}
+	doneChan     chan struct{}
 }
 
-func NewKafkaWorker(
+func New(
 	queueClient client.QueueServiceClient,
-	consumer *kafka.Consumer,
+	batchSize int,
+	pollInterval time.Duration,
+	retryDelay time.Duration,
 	m *metrics.ServiceMetrics,
-) *KafkaWorker {
-	return &KafkaWorker{
-		queueClient: queueClient,
-		consumer:    consumer,
-		stopChan:    make(chan struct{}),
-		doneChan:    make(chan struct{}),
-		metrics:     m,
+) *Worker {
+	return &Worker{
+		queueClient:  queueClient,
+		batchSize:    batchSize,
+		pollInterval: pollInterval,
+		retryDelay:   retryDelay,
+		metrics:      m,
+		stopChan:     make(chan struct{}),
+		doneChan:     make(chan struct{}),
 	}
 }
 
-func (w *KafkaWorker) SetConsumer(consumer *kafka.Consumer) {
-	w.consumer = consumer
-}
-
-func (w *KafkaWorker) HandleEvent(ctx context.Context, event kafka.Event) error {
-	return w.handleEvent(ctx, event)
-}
-
-func (w *KafkaWorker) Start(ctx context.Context) error {
-	log := logger.WithComponent("kafka-worker")
-	log.Info("starting kafka worker")
+func (w *Worker) Start(ctx context.Context) {
+	log := logger.WithComponent("worker")
+	log.Info("starting polling worker")
 
 	go w.run(ctx)
-
-	return nil
 }
 
-func (w *KafkaWorker) run(ctx context.Context) {
+func (w *Worker) run(ctx context.Context) {
 	defer close(w.doneChan)
+	log := logger.WithComponent("worker")
 
-	log := logger.WithComponent("kafka-worker")
-	log.Info("kafka worker running, waiting for message...")
+	log.Debug("initial poll (immediate)")
+	w.poll(ctx)
 
-	err := w.consumer.Start(ctx)
-	if err != nil {
-		log.WithError(err).Error("failed to start kafka consumer")
-		return
-	}
+	ticker := time.NewTicker(w.pollInterval)
+	defer ticker.Stop()
 
-	select {
-	case <-ctx.Done():
-		log.Info("worker stopping due to context cancellation")
-		return
+	for {
+		select {
+		case <-ctx.Done():
+			log.Info("worker stopping due to context cancellation")
+			return
 
-	case <-w.stopChan:
-		log.Info("worker stopping due to stop signal")
+		case <-w.stopChan:
+			log.Info("worker stopping due to stop signal")
+			return
+
+		case <-ticker.C:
+			log.Debug("poll triggered by ticker")
+			w.poll(ctx)
+		}
 	}
 }
 
-func (w *KafkaWorker) handleEvent(ctx context.Context, event kafka.Event) error {
-	log := logger.WithFields("kafka-worker", logrus.Fields{
-		"event_type": event.EventType,
-		"task_id":    event.TaskID,
+func (w *Worker) poll(ctx context.Context) {
+	log := logger.WithComponent("worker")
+
+	tasks, err := w.queueClient.GetPendingTasks(ctx, w.batchSize)
+	if err != nil {
+		log.WithError(err).Error("failed to get pending tasks")
+		return
+	}
+
+	if len(tasks) == 0 {
+		log.Debug("no pending tasks found")
+		return
+	}
+
+	log.WithField("count", len(tasks)).Info("processing tasks")
+
+	for _, task := range tasks {
+		select {
+		case <-ctx.Done():
+			log.Warn("context cancelled while processing batch, stopping")
+			return
+		default:
+		}
+
+		w.processTask(ctx, task)
+	}
+}
+
+func (w *Worker) processTask(ctx context.Context, task *taskmodel.Task) {
+	log := logger.WithFields("worker", logrus.Fields{
+		"task_id": task.ID,
+		"type":    task.Type,
 	})
 
-	log.Info("processing task from kafka")
+	startTime := time.Now()
 
-	task, err := w.queueClient.GetTask(ctx, event.TaskID)
-	if err != nil {
-		log.WithError(err).Error("failed to get task")
-		return err
-	}
+	log.WithField("status", task.Status).Info("processing task")
 
 	if err := w.executeTask(ctx, task); err != nil {
-		log.WithError(err).Error("failed to execute task")
+		log.WithError(err).Error("task execution failed")
 		w.metrics.TasksFailed.Inc()
 
 		if updateErr := w.queueClient.UpdateTaskStatus(ctx, task.ID, taskmodel.StatusFailed, err.Error()); updateErr != nil {
-			log.WithError(updateErr).Error("failed to update task status")
+			log.WithError(updateErr).Error("failed to update task status to failed")
+		} else {
+			log.Info("task status updated to failed")
 		}
-		return err
+
+		return
 	}
 
 	w.metrics.TasksProcessed.Inc()
 	if err := w.queueClient.UpdateTaskStatus(ctx, task.ID, taskmodel.StatusCompleted, ""); err != nil {
-		log.WithError(err).Error("failed to update task status")
-		return err
+		log.WithError(err).Error("failed to update task status to completed")
+	} else {
+		log.Info("task status updated to completed")
 	}
 
-	log.Info("task successfully processed")
-	return nil
+	log.WithField("duration_ms", time.Since(startTime).Milliseconds()).Info("task completed")
 }
 
-func (w *KafkaWorker) executeTask(ctx context.Context, task *taskmodel.Task) error {
+func (w *Worker) executeTask(ctx context.Context, task *taskmodel.Task) error {
 	log := logger.WithFields("worker", logrus.Fields{
 		"task_id": task.ID,
 		"type":    task.Type,
@@ -126,7 +153,7 @@ func (w *KafkaWorker) executeTask(ctx context.Context, task *taskmodel.Task) err
 	}
 }
 
-func (w *KafkaWorker) sendEmail(payload string) error {
+func (w *Worker) sendEmail(payload string) error {
 	time.Sleep(100 * time.Millisecond)
 
 	if payload == "" {
@@ -136,7 +163,7 @@ func (w *KafkaWorker) sendEmail(payload string) error {
 	return nil
 }
 
-func (w *KafkaWorker) generateReport(payload string) error {
+func (w *Worker) generateReport(payload string) error {
 	time.Sleep(200 * time.Millisecond)
 
 	if payload == "" {
@@ -146,16 +173,12 @@ func (w *KafkaWorker) generateReport(payload string) error {
 	return nil
 }
 
-func (w *KafkaWorker) Stop() {
+func (w *Worker) Stop() {
 	log := logger.WithComponent("worker")
 	log.Info("stopping worker")
 
 	close(w.stopChan)
 	<-w.doneChan
-
-	if w.consumer != nil {
-		w.consumer.Stop()
-	}
 
 	log.Info("worker stopped")
 }

@@ -38,6 +38,15 @@ type Config struct {
 		Topic         string
 		ConsumerGroup string
 	}
+
+	ClickHouse struct {
+		Enabled  bool
+		Host     string
+		Port     int
+		Database string
+		User     string
+		Password string
+	}
 }
 
 func New() *Config {
@@ -58,11 +67,18 @@ func New() *Config {
 	cfg.Client.Timeout = 30 * time.Second
 	cfg.Client.MaxRetries = 3
 
-	cfg.WorkerMode = "polling"                     // По умолчанию polling режим
-	cfg.Kafka.Enabled = false                      // Kafka выключена по умолчанию
-	cfg.Kafka.Brokers = []string{"localhost:9092"} // Брокер по умолчанию
-	cfg.Kafka.Topic = "tasks"                      // Топик по умолчанию
-	cfg.Kafka.ConsumerGroup = "worker-group"       // Группа потребителей
+	cfg.WorkerMode = "polling"
+	cfg.Kafka.Enabled = false
+	cfg.Kafka.Brokers = []string{"localhost:9092"}
+	cfg.Kafka.Topic = "tasks"
+	cfg.Kafka.ConsumerGroup = "worker-group"
+
+	cfg.ClickHouse.Enabled = false
+	cfg.ClickHouse.Host = "localhost"
+	cfg.ClickHouse.Port = 9000
+	cfg.ClickHouse.Database = "analytics"
+	cfg.ClickHouse.User = "default"
+	cfg.ClickHouse.Password = ""
 
 	if portStr := os.Getenv("PORT"); portStr != "" {
 		if port, err := strconv.Atoi(portStr); err == nil {
@@ -128,6 +144,28 @@ func New() *Config {
 
 	if group := os.Getenv("KAFKA_CONSUMER_GROUP"); group != "" {
 		cfg.Kafka.ConsumerGroup = group
+	}
+
+	if enabled := os.Getenv("CLICKHOUSE_ENABLED"); enabled == "true" {
+		cfg.ClickHouse.Enabled = true
+	}
+
+	if host := os.Getenv("CLICKHOUSE_HOST"); host != "" {
+		cfg.ClickHouse.Host = host
+	}
+	if portStr := os.Getenv("CLICKHOUSE_PORT"); portStr != "" {
+		if port, err := strconv.Atoi(portStr); err == nil {
+			cfg.ClickHouse.Port = port
+		}
+	}
+	if db := os.Getenv("CLICKHOUSE_DATABASE"); db != "" {
+		cfg.ClickHouse.Database = db
+	}
+	if user := os.Getenv("CLICKHOUSE_USER"); user != "" {
+		cfg.ClickHouse.User = user
+	}
+	if pass := os.Getenv("CLICKHOUSE_PASSWORD"); pass != "" {
+		cfg.ClickHouse.Password = pass
 	}
 
 	return cfg

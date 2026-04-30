@@ -75,15 +75,13 @@ func NewServiceMetricsWithRegistry(serviceName string, reg prometheus.Registerer
 	)
 
 	if reg != nil {
-		reg.MustRegister(
-			requestTotal,
-			requestDuration,
-			requestInFlight,
-			tasksCreated,
-			tasksProcessed,
-			tasksFailed,
-			tasksInQueue,
-		)
+		registerOrIgnore(reg, requestTotal)
+		registerOrIgnore(reg, requestDuration)
+		registerOrIgnore(reg, requestInFlight)
+		registerOrIgnore(reg, tasksCreated)
+		registerOrIgnore(reg, tasksProcessed)
+		registerOrIgnore(reg, tasksFailed)
+		registerOrIgnore(reg, tasksInQueue)
 	}
 
 	return &ServiceMetrics{
@@ -101,6 +99,14 @@ func NewServiceMetrics(serviceName string) *ServiceMetrics {
 	return NewServiceMetricsWithRegistry(serviceName, prometheus.DefaultRegisterer)
 }
 
+func registerOrIgnore(reg prometheus.Registerer, collector prometheus.Collector) {
+	if err := reg.Register(collector); err != nil {
+		if _, ok := err.(prometheus.AlreadyRegisteredError); ok {
+			return
+		}
+	}
+}
+
 func (m *ServiceMetrics) MetricsMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		m.RequestInFlight.Inc()
@@ -116,7 +122,6 @@ func (m *ServiceMetrics) MetricsMiddleware(next http.HandlerFunc) http.HandlerFu
 
 		m.RequestTotal.WithLabelValues(r.Method, r.URL.Path, strconv.Itoa(rw.statusCode)).Inc()
 		m.RequestDuration.WithLabelValues(r.Method, r.URL.Path).Observe(duration)
-
 	}
 }
 

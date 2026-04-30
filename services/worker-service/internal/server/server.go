@@ -7,35 +7,31 @@ import (
 
 	"github.com/alexey-y-a/go-taskqueue-microservices/libs/logger"
 	"github.com/alexey-y-a/go-taskqueue-microservices/libs/metrics"
-	"github.com/alexey-y-a/go-taskqueue-microservices/services/worker-service/internal/client"
 	"github.com/alexey-y-a/go-taskqueue-microservices/services/worker-service/internal/config"
 	"github.com/alexey-y-a/go-taskqueue-microservices/services/worker-service/internal/handlers"
 	"github.com/alexey-y-a/go-taskqueue-microservices/services/worker-service/internal/worker"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 )
 
 type Server struct {
 	httpServer *http.Server
 	config     *config.Config
-	worker     *worker.KafkaWorker
+	worker     *worker.Worker
+	metrics    *metrics.ServiceMetrics
 }
 
-func New(cfg *config.Config) *Server {
-	httpClient := client.NewHTTPClient(cfg.Client.QueueServiceURL, cfg.Client.Timeout)
+func New(cfg *config.Config, w *worker.Worker) *Server {
+	return NewWithWorker(cfg, w)
+}
 
-	metricsSvc := metrics.NewServiceMetrics("worker-service")
-
-	w := worker.New(
-		httpClient,
-		cfg.Worker.BatchSize,
-		cfg.Worker.PollInterval,
-		cfg.Worker.RetryDelay,
-		metricsSvc,
-	)
+func NewWithWorker(cfg *config.Config, w *worker.Worker) *Server {
+	serviceMetrics := metrics.NewServiceMetrics("worker_service")
 
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/healthz", handlers.HealthHandler())
+	mux.Handle("/metrics", promhttp.Handler())
 
 	httpServer := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Port),
@@ -59,6 +55,7 @@ func New(cfg *config.Config) *Server {
 		httpServer: httpServer,
 		config:     cfg,
 		worker:     w,
+		metrics:    serviceMetrics,
 	}
 }
 
@@ -68,34 +65,23 @@ func (s *Server) Start(ctx context.Context) error {
 
 	s.worker.Start(ctx)
 
-	errChan := make(chan error, 1)
 	go func() {
-		err := s.httpServer.ListenAndServe()
-		if err != nil && err != http.ErrServerClosed {
-			errChan <- fmt.Errorf("server failed: %w", err)
+		if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.WithError(err).Error("HTTP server failed")
 		}
 	}()
 
-	select {
-	case err := <-errChan:
-		return err
-	case <-ctx.Done():
-		return nil
-	}
+	return nil
 }
 
 func (s *Server) Stop(ctx context.Context) error {
 	log := logger.WithComponent("worker-service")
-	log.Info("shutting down")
+	log.Info("Shutting down HTTP server...")
 
-	s.worker.Stop()
-
-	err := s.httpServer.Shutdown(ctx)
-	if err != nil {
+	if err := s.httpServer.Shutdown(ctx); err != nil {
 		return fmt.Errorf("server shutdown failed: %w", err)
 	}
 
-	log.Info("shutdown completed")
-
+	log.Info("HTTP server stopped")
 	return nil
 }
