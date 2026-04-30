@@ -201,3 +201,65 @@ func (h *TaskHandler) GetPending(w http.ResponseWriter, r *http.Request) {
 		log.WithError(err).Error("Failed to encode response")
 	}
 }
+
+func (h *TaskHandler) Update(w http.ResponseWriter, r *http.Request) {
+	log := logger.WithFields("queue-service", logrus.Fields{
+		"method": r.Method,
+		"path":   r.URL.Path,
+	})
+
+	if r.Method != http.MethodPut && r.Method != http.MethodPatch {
+		log.Warn("Method not allowed")
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	pathParts := strings.Split(r.URL.Path, "/")
+	if len(pathParts) < 3 {
+		log.Warn("Missing task ID")
+		http.Error(w, "Missing task ID", http.StatusBadRequest)
+		return
+	}
+
+	id := pathParts[2]
+
+	var req struct {
+		Status taskmodel.TaskStatus `json:"status"`
+		Error  string               `json:"error,omitempty"`
+	}
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		log.WithError(err).Warn("Invalid JSON")
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	log.WithFields(logrus.Fields{
+		"task_id": id,
+		"status":  req.Status,
+		"error":   req.Error,
+	}).Info("Update task request")
+
+	err = h.store.UpdateStatus(r.Context(), id, req.Status, req.Error)
+	if err != nil {
+		if err == store.ErrTaskNotFound {
+			log.WithField("task_id", id).Warn("Task not found")
+			http.Error(w, "Task not found", http.StatusNotFound)
+		} else {
+			log.WithError(err).Error("Failed to update task")
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	task, err := h.store.Get(r.Context(), id)
+	if err != nil {
+		log.WithError(err).Error("Failed to get updated task")
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(task)
+}

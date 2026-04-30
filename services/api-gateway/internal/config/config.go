@@ -21,6 +21,15 @@ type Config struct {
 		QueueServiceURL string
 		Timeout         time.Duration
 	}
+
+	ClickHouse struct {
+		Enabled  bool
+		Host     string
+		Port     int
+		Database string
+		User     string
+		Password string
+	}
 }
 
 func New() *Config {

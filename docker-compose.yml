@@ -1,13 +1,13 @@
-version: '3.8'
-
 networks:
   internal:
     driver: bridge
-    internal: false
-  monitoring:
-    driver: bridge
+  # monitoring:
+  #   driver: bridge
 
 services:
+  # ============================================
+  # API Gateway
+  # ============================================
   api-gateway:
     build:
       context: .
@@ -24,12 +24,21 @@ services:
       - IDLE_TIMEOUT=120
       - SHUTDOWN_TIMEOUT=10
       - LOG_LEVEL=info
+      # - CLICKHOUSE_ENABLED=true
+      # - CLICKHOUSE_HOST=clickhouse
+      # - CLICKHOUSE_PORT=9000
+      # - CLICKHOUSE_DATABASE=analytics
+      # - CLICKHOUSE_USER=default
+      # - CLICKHOUSE_PASSWORD=
     networks:
       - internal
     depends_on:
       - queue-service
     restart: unless-stopped
 
+  # ============================================
+  # Queue Service
+  # ============================================
   queue-service:
     build:
       context: .
@@ -44,16 +53,19 @@ services:
       - IDLE_TIMEOUT=120
       - SHUTDOWN_TIMEOUT=10
       - LOG_LEVEL=info
-      - KAFKA_ENABLED=true
-      - KAFKA_BROKERS=kafka:9092
-      - KAFKA_TOPIC=tasks
+      - KAFKA_ENABLED=false
+      # - KAFKA_BROKERS=kafka:9092
+      # - KAFKA_TOPIC=tasks
       - STORE_TYPE=memory
     networks:
       - internal
-    depends_on:
-      - kafka
+    # depends_on:
+    #   - kafka
     restart: unless-stopped
 
+  # ============================================
+  # Worker Service
+  # ============================================
   worker-service:
     build:
       context: .
@@ -71,59 +83,117 @@ services:
       - IDLE_TIMEOUT=120
       - SHUTDOWN_TIMEOUT=10
       - LOG_LEVEL=info
-      - WORKER_MODE=kafka
-      - KAFKA_ENABLED=true
-      - KAFKA_BROKERS=kafka:9092
-      - KAFKA_TOPIC=tasks
-      - KAFKA_CONSUMER_GROUP=worker-group
+      - WORKER_MODE=polling
+      - KAFKA_ENABLED=false
+      # - KAFKA_BROKERS=kafka:9092
+      # - KAFKA_TOPIC=tasks
+      # - KAFKA_CONSUMER_GROUP=worker-group
+      # - CLICKHOUSE_ENABLED=true
+      # - CLICKHOUSE_HOST=clickhouse
+      # - CLICKHOUSE_PORT=9000
+      # - CLICKHOUSE_DATABASE=analytics
+      # - CLICKHOUSE_USER=default
+      # - CLICKHOUSE_PASSWORD=
     networks:
       - internal
     depends_on:
       - queue-service
-      - kafka
+      # - kafka
+      # - clickhouse
     restart: unless-stopped
 
-  zookeeper:
-    image: confluentinc/cp-zookeeper:latest
-    container_name: zookeeper
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-    ports:
-      - "2181:2181"
-    networks:
-      - internal
-    restart: unless-stopped
+  # ============================================
+  # Zookeeper (закомментирован)
+  # ============================================
+  # zookeeper:
+  #   image: confluentinc/cp-zookeeper:7.5.0
+  #   container_name: zookeeper
+  #   environment:
+  #     ZOOKEEPER_CLIENT_PORT: 2181
+  #     ZOOKEEPER_TICK_TIME: 2000
+  #   ports:
+  #     - "2181:2181"
+  #   networks:
+  #     - internal
+  #   restart: unless-stopped
 
-  kafka:
-    image: confluentinc/cp-kafka:latest
-    container_name: kafka
-    depends_on:
-      - zookeeper
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-    ports:
-      - "9092:9092"
-    networks:
-      - internal
-    restart: unless-stopped
+  # ============================================
+  # Apache Kafka (закомментирован)
+  # ============================================
+  # kafka:
+  #   image: confluentinc/cp-kafka:7.5.0
+  #   container_name: kafka
+  #   depends_on:
+  #     - zookeeper
+  #   environment:
+  #     KAFKA_BROKER_ID: 1
+  #     KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+  #     KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+  #     KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+  #     KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+  #     KAFKA_PROCESS_ROLES: broker
+  #     KAFKA_NODE_ID: 1
+  #   ports:
+  #     - "9092:9092"
+  #   networks:
+  #     - internal
+  #   restart: unless-stopped
 
-  kafka-ui:
-    image: provectuslabs/kafka-ui:latest
-    container_name: kafka-ui
-    depends_on:
-      - kafka
-    environment:
-      KAFKA_CLUSTERS_0_NAME: local
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
-      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
-    ports:
-      - "8083:8080"
-    networks:
-      - internal
-    restart: unless-stopped
+  # ============================================
+  # Kafka UI (закомментирован)
+  # ============================================
+  # kafka-ui:
+  #   image: provectuslabs/kafka-ui:latest
+  #   container_name: kafka-ui
+  #   depends_on:
+  #     - kafka
+  #   environment:
+  #     KAFKA_CLUSTERS_0_NAME: local
+  #     KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+  #     KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+  #   ports:
+  #     - "8083:8080"
+  #   networks:
+  #     - internal
+  #   restart: unless-stopped
+
+  # ============================================
+  # ClickHouse (закомментирован)
+  # ============================================
+  # clickhouse:
+  #   image: clickhouse/clickhouse-server:latest
+  #   container_name: clickhouse
+  #   ports:
+  #     - "8123:8123"
+  #     - "9000:9000"
+  #   volumes:
+  #     - clickhouse_data:/var/lib/clickhouse
+  #     - ./configs/clickhouse-init.sql:/docker-entrypoint-initdb.d/init.sql
+  #   environment:
+  #     CLICKHOUSE_DB: analytics
+  #     CLICKHOUSE_USER: default
+  #     CLICKHOUSE_PASSWORD: ""
+  #   networks:
+  #     - internal
+  #   restart: unless-stopped
+
+  # ============================================
+  # Tabix UI для ClickHouse (закомментирован)
+  # ============================================
+  # tabix-ui:
+  #   image: spoonest/clickhouse-tabix-web-client
+  #   platform: linux/amd64
+  #   container_name: tabix-ui
+  #   ports:
+  #     - "8084:80"
+  #   environment:
+  #     - CH_HOST=clickhouse
+  #     - CH_PORT=8123
+  #   networks:
+  #     - internal
+  #   depends_on:
+  #     - clickhouse
+  #   restart: unless-stopped
+
+# volumes:
+#   clickhouse_data:
